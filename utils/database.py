@@ -1,4 +1,4 @@
-# database.py - ЗАМЕНИТЕ ВЕСЬ ФАЙЛ
+# database.py - ОБНОВЛЕННЫЙ ФАЙЛ
 import aiosqlite
 import datetime
 from typing import List, Dict, Optional, Tuple, Any
@@ -69,6 +69,7 @@ class Database:
                         title TEXT NOT NULL,
                         description TEXT,
                         duration TEXT NOT NULL,
+                        time_to_complete TEXT NOT NULL DEFAULT '1 час',
                         expires_at TIMESTAMP NOT NULL,
                         required_count INTEGER NOT NULL,
                         created_by INTEGER NOT NULL,
@@ -92,10 +93,34 @@ class Database:
 
                 await db.commit()
                 print("✅ Таблицы базы данных созданы/проверены")
-                return True
+                
+            # Проверяем и добавляем недостающие столбцы
+            await self._add_missing_columns()
+            return True
                 
         except Exception as e:
             print(f"❌ Ошибка инициализации базы данных: {e}")
+            return False
+
+    async def _add_missing_columns(self):
+        """Добавляет недостающие столбцы в существующие таблицы"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                # Проверяем существование столбца time_to_complete в contracts
+                cursor = await db.execute("PRAGMA table_info(contracts)")
+                columns = await cursor.fetchall()
+                column_names = [column[1] for column in columns]
+                
+                if 'time_to_complete' not in column_names:
+                    print("🔄 Добавляем столбец time_to_complete в таблицу contracts...")
+                    await db.execute('ALTER TABLE contracts ADD COLUMN time_to_complete TEXT NOT NULL DEFAULT "1 час"')
+                    await db.commit()
+                    print("✅ Столбец time_to_complete успешно добавлен")
+                
+                print("✅ Проверка структуры таблиц завершена")
+                return True
+        except Exception as e:
+            print(f"❌ Ошибка добавления столбцов: {e}")
             return False
 
     # ========== МЕТОДЫ ДЛЯ ЗАЯВОК ==========
@@ -214,24 +239,24 @@ class Database:
 
     # ========== МЕТОДЫ ДЛЯ КОНТРАКТОВ ==========
 
-async def create_contract(self, title: str, description: str, duration: str, expires_at: str,
-                        required_count: int, created_by: int, contract_type: str) -> Optional[int]:
-    """Создает новый контракт"""
-    try:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("PRAGMA foreign_keys = ON")
-            cursor = await db.execute('''
-                INSERT INTO contracts 
-                (title, description, duration, expires_at, required_count, created_by, contract_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (title, description, duration, expires_at, required_count, created_by, contract_type))
-            await db.commit()
-            contract_id = cursor.lastrowid
-            print(f"✅ Контракт создан: {title} (ID: {contract_id})")
-            return contract_id
-    except Exception as e:
-        print(f"❌ Ошибка создания контракта: {e}")
-        return None
+    async def create_contract(self, title: str, description: str, duration: str, time_to_complete: str, expires_at: str,
+                            required_count: int, created_by: int, contract_type: str) -> Optional[int]:
+        """Создает новый контракт"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("PRAGMA foreign_keys = ON")
+                cursor = await db.execute('''
+                    INSERT INTO contracts 
+                    (title, description, duration, time_to_complete, expires_at, required_count, created_by, contract_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (title, description, duration, time_to_complete, expires_at, required_count, created_by, contract_type))
+                await db.commit()
+                contract_id = cursor.lastrowid
+                print(f"✅ Контракт создан: {title} (ID: {contract_id})")
+                return contract_id
+        except Exception as e:
+            print(f"❌ Ошибка создания контракта: {e}")
+            return None
 
     async def get_contract_participants(self, contract_id: int) -> List[Tuple]:
         """Получает всех участников контракта"""
@@ -257,7 +282,7 @@ async def create_contract(self, title: str, description: str, duration: str, exp
                     VALUES (?, ?, ?)
                 ''', (contract_id, user_id, username))
                 await db.commit()
-                return True
+            return True
         except Exception as e:
             print(f"❌ Ошибка добавления участника: {e}")
             return False
@@ -272,7 +297,7 @@ async def create_contract(self, title: str, description: str, duration: str, exp
                     (contract_id, user_id)
                 )
                 await db.commit()
-                return True
+            return True
         except Exception as e:
             print(f"❌ Ошибка удаления участника: {e}")
             return False
@@ -286,7 +311,8 @@ async def create_contract(self, title: str, description: str, duration: str, exp
                     'SELECT * FROM contracts WHERE id = ?', 
                     (contract_id,)
                 )
-                return await cursor.fetchone()
+                result = await cursor.fetchone()
+                return result
         except Exception as e:
             print(f"❌ Ошибка получения контракта: {e}")
             return None
@@ -301,7 +327,7 @@ async def create_contract(self, title: str, description: str, duration: str, exp
                     (status, contract_id)
                 )
                 await db.commit()
-                return True
+            return True
         except Exception as e:
             print(f"❌ Ошибка обновления статуса контракта: {e}")
             return False
@@ -341,10 +367,37 @@ async def create_contract(self, title: str, description: str, duration: str, exp
                 # Удаляем контракт
                 await db.execute('DELETE FROM contracts WHERE id = ?', (contract_id,))
                 await db.commit()
-                return True
+            return True
         except Exception as e:
             print(f"❌ Ошибка удаления контракта: {e}")
             return False
+
+    async def get_database_stats(self) -> Dict[str, int]:
+        """Получает статистику базы данных"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("PRAGMA foreign_keys = ON")
+                stats = {}
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM applications')
+                stats['applications'] = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM applications WHERE status = "pending"')
+                stats['pending_applications'] = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM birthdays')
+                stats['birthdays'] = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM contracts WHERE status = "active"')
+                stats['active_contracts'] = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM contract_participants')
+                stats['contract_participants'] = (await cursor.fetchone())[0]
+                
+                return stats
+        except Exception as e:
+            print(f"❌ Ошибка получения статистики: {e}")
+            return {}
 
     # ========== МЕТОДЫ ДЛЯ ОЧИСТКИ ДАННЫХ ==========
 
@@ -405,30 +458,3 @@ async def create_contract(self, title: str, description: str, duration: str, exp
         except Exception as e:
             print(f"❌ Ошибка сброса базы данных: {e}")
             return False
-
-    async def get_database_stats(self) -> Dict[str, int]:
-        """Получает статистику базы данных"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("PRAGMA foreign_keys = ON")
-                stats = {}
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM applications')
-                stats['applications'] = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM applications WHERE status = "pending"')
-                stats['pending_applications'] = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM birthdays')
-                stats['birthdays'] = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM contracts WHERE status = "active"')
-                stats['active_contracts'] = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM contract_participants')
-                stats['contract_participants'] = (await cursor.fetchone())[0]
-                
-                return stats
-        except Exception as e:
-            print(f"❌ Ошибка получения статистики: {e}")
-            return {}
