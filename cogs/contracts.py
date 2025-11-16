@@ -49,7 +49,7 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
             expires_at = datetime.datetime.now() + datetime.timedelta(hours=4)
             
             # Создаем контракт в базе данных
-            contract_id = await db.create_contract(
+            contract_id = await db.create_contracts(
                 self.title_input.value,
                 self.description.value,
                 self.duration.value,
