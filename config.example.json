@@ -9,7 +9,7 @@
   "CONTRACTS_CHANNEL_ID": 123456789012345678,
   "ROLE_GUEST": "Guest",
   "ROLE_OCEAN_ACADEMY": "Ocean Academy",
-  "ROLE_REC": "RECRUTIER",
+  "ROLE_REC": "REC",
   "ROLE_OWNER": "Owner",
   "ROLE_ORG": "ORG"
 }
