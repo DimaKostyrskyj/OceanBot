@@ -214,24 +214,24 @@ class Database:
 
     # ========== МЕТОДЫ ДЛЯ КОНТРАКТОВ ==========
 
-    async def create_contract(self, title: str, description: str, duration: str, expires_at: str,
-                            required_count: int, created_by: int, contract_type: str) -> Optional[int]:
-        """Создает новый контракт"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("PRAGMA foreign_keys = ON")
-                cursor = await db.execute('''
-                    INSERT INTO contracts 
-                    (title, description, duration, expires_at, required_count, created_by, contract_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (title, description, duration, expires_at, required_count, created_by, contract_type))
-                await db.commit()
-                contract_id = cursor.lastrowid
-                print(f"✅ Контракт создан: {title} (ID: {contract_id})")
-                return contract_id
-        except Exception as e:
-            print(f"❌ Ошибка создания контракта: {e}")
-            return None
+async def create_contract(self, title: str, description: str, duration: str, expires_at: str,
+                        required_count: int, created_by: int, contract_type: str) -> Optional[int]:
+    """Создает новый контракт"""
+    try:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA foreign_keys = ON")
+            cursor = await db.execute('''
+                INSERT INTO contracts 
+                (title, description, duration, expires_at, required_count, created_by, contract_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (title, description, duration, expires_at, required_count, created_by, contract_type))
+            await db.commit()
+            contract_id = cursor.lastrowid
+            print(f"✅ Контракт создан: {title} (ID: {contract_id})")
+            return contract_id
+    except Exception as e:
+        print(f"❌ Ошибка создания контракта: {e}")
+        return None
 
     async def get_contract_participants(self, contract_id: int) -> List[Tuple]:
         """Получает всех участников контракта"""

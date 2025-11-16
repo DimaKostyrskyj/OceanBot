@@ -11,7 +11,7 @@ db = Database()
 
 class ContractCreationModal(ui.Modal, title='📋 Создание контракта'):
     def __init__(self):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
 
     title_input = ui.TextInput(
         label='Название контракта',
@@ -40,15 +40,15 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
             # Рассчитываем время окончания
             expires_at = datetime.datetime.now() + datetime.timedelta(hours=4)
             
-            # Создаем контракт в базе данных
+            # Создаем контракт в базе данных - УБРАТЬ contract_type
             contract_id = await db.create_contract(
                 self.title_input.value,
                 self.description.value,
                 self.duration.value,
                 expires_at.isoformat(),
-                0,
+                0,  # required_count
                 interaction.user.id,
-                "general"  # Просто общий тип
+                "general"  # contract_type по умолчанию
             )
             
             if not contract_id:
@@ -218,7 +218,7 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
 
 class ContractTypeView(ui.View):
     def __init__(self):
-        super().__init__(timeout=60)
+        super().__init__(timeout=None)
 
     @ui.button(label='🌊 Ocean/Academy', style=discord.ButtonStyle.primary)
     async def general_contract(self, interaction: discord.Interaction, button: ui.Button):
@@ -230,7 +230,7 @@ class ContractTypeView(ui.View):
 
 class ContractManagementView(ui.View):
     def __init__(self, contract_id: int, parent_view: 'ContractView'):
-        super().__init__(timeout=60)
+        super().__init__(timeout=None)
         self.contract_id = contract_id
         self.parent_view = parent_view
 
@@ -649,57 +649,73 @@ class Contracts(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        await db.init_db()
-        self.bot.add_view(CreateContractView())
+@commands.Cog.listener()
+async def on_ready(self):
+    # Инициализация базы данных
+    await db.init_db()
+    
+    # РЕГИСТРИРУЕМ ФИКСИРОВАННУЮ КНОПКУ СОЗДАНИЯ КОНТРАКТОВ
+    self.bot.add_view(CreateContractView())
+    print("✅ Фиксированная кнопка создания контрактов зарегистрирована")
+    
+    # РЕГИСТРИРУЕМ ФИКСИРОВАННЫЕ КНОПКИ ДЛЯ АКТИВНЫХ КОНТРАКТОВ
+    try:
+        active_contracts = await db.get_active_contracts()
+        print(f"🔍 Найдено {len(active_contracts)} активных контрактов для регистрации")
         
-        # Регистрируем views активных контрактов
-        try:
-            active_contracts = await db.get_active_contracts()
-            for contract in active_contracts:
-                contract_id = contract[0]
-                view = ContractView(contract_id)
-                self.bot.add_view(view)
-                print(f"✅ Зарегистрирован view для контракта #{contract_id}")
-        except Exception as e:
-            print(f"❌ Ошибка регистрации view контрактов: {e}")
+        for contract in active_contracts:
+            contract_id = contract[0]
+            # Регистрируем view для каждого активного контракта
+            view = ContractView(contract_id)
+            self.bot.add_view(view)
+            print(f"✅ Зарегистрированы фиксированные кнопки для контракта #{contract_id}")
+            
+    except Exception as e:
+        print(f"❌ Ошибка регистрации view контрактов: {e}")
 
-    @commands.hybrid_command(name="setup_contracts", description="Установить кнопку создания контрактов")
-    @commands.has_any_role(ROLES["ORG"], ROLES["OWNER"])
-    async def setup_contracts(self, ctx):
-        """Установка фиксированной кнопки создания контрактов"""
+@commands.hybrid_command(name="setup_contracts", description="Установить фиксированную кнопку создания контрактов")
+@commands.has_any_role(ROLES["ORG"], ROLES["OWNER"])
+async def setup_contracts(self, ctx):
+    """Установка фиксированной кнопки создания контрактов"""
+    try:
+        contracts_channel = ctx.guild.get_channel(CHANNELS["CONTRACTS"])
+        if not contracts_channel:
+            await ctx.send("❌ Канал контрактов не найден!", ephemeral=True)
+            return
+        
+        # Очищаем предыдущие сообщения
         try:
-            contracts_channel = ctx.guild.get_channel(CHANNELS["CONTRACTS"])
-            if not contracts_channel:
-                await ctx.send("❌ Канал контрактов не найден!", ephemeral=True)
-                return
-            
-            # Очищаем предыдущие сообщения
-            try:
-                await contracts_channel.purge(limit=10)
-            except:
-                pass
-            
-            # Создаем embed с инструкцией
-            embed = discord.Embed(
-                title="🚀 Система контрактов",
-                description="Нажмите кнопку ниже чтобы создать новый контракт",
-                color=COLORS["OCEAN"]
-            )
-            embed.add_field(
-                name="Как использовать:",
-                value="1. Нажмите 'Создать контракт'\n2. Заполните форму\n3. Участники записываются кнопками\n4. Нажмите 'Начать' для создания ветки",
-                inline=False
-            )
-            
-            # Отправляем сообщение с фиксированной кнопкой
-            await contracts_channel.send(embed=embed, view=CreateContractView())
-            await ctx.send("✅ Кнопка создания контрактов установлена!", ephemeral=True)
-            
+            await contracts_channel.purge(limit=10)
+            print("✅ Очищены предыдущие сообщения в канале контрактов")
         except Exception as e:
-            print(f"❌ Ошибка установки кнопки: {e}")
-            await ctx.send(f"❌ Ошибка при установке кнопки: {e}", ephemeral=True)
+            print(f"⚠️ Не удалось очистить канал: {e}")
+        
+        # Создаем embed с инструкцией
+        embed = discord.Embed(
+            title="🚀 Система контрактов",
+            description="Нажмите кнопку ниже чтобы создать новый контракт",
+            color=COLORS["OCEAN"]
+        )
+        embed.add_field(
+            name="📋 Как использовать:",
+            value=(
+                "1. **Создать** - нажмите кнопку ниже\n"
+                "2. **Заполните** форму с названием и описанием\n" 
+                "3. **Участники** записываются кнопками в контракте\n"
+                "4. **Начать** - создает ветку для участников"
+            ),
+            inline=False
+        )
+        
+        # ОТПРАВЛЯЕМ СООБЩЕНИЕ С ФИКСИРОВАННОЙ КНОПКОЙ
+        await contracts_channel.send(embed=embed, view=CreateContractView())
+        print("✅ Фиксированная кнопка создания контрактов отправлена в канал")
+        
+        await ctx.send("✅ Фиксированная кнопка создания контрактов установлена!", ephemeral=True)
+        
+    except Exception as e:
+        print(f"❌ Ошибка установки кнопки: {e}")
+        await ctx.send(f"❌ Ошибка при установке кнопки: {e}", ephemeral=True)
 
     @commands.hybrid_command(name="active_contracts", description="Показать активные контракты")
     async def active_contracts(self, ctx):
