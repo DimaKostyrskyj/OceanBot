@@ -1,3 +1,4 @@
+# contracts.py - ПОЛНЫЙ ФАЙЛ С РАЗДЕЛЕНИЕМ КАНАЛОВ
 import discord
 from discord.ext import commands
 from discord import ui
@@ -89,10 +90,24 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
             
             embed.set_footer(text=f"ID контракта: {contract_id}")
             
-            # Отправляем сообщение в канал контрактов
-            channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
-            if channel:
-                message = await channel.send(embed=embed, view=view)
+            # ОТПРАВЛЯЕМ ИНФОРМАЦИЮ В КАНАЛ КОНТРАКТОВ
+            contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
+            if contracts_channel:
+                message = await contracts_channel.send(embed=embed)
+                print(f"✅ Информация о контракте отправлена в канал контрактов")
+            
+            # ОТПРАВЛЯЕМ КНОПКУ В КАНАЛ ЗАПУСКА КОНТРАКТОВ
+            launch_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS_LAUNCH"])
+            if launch_channel:
+                # Создаем минималистичный embed для кнопки
+                launch_embed = discord.Embed(
+                    title=f"🚀 {self.title_input.value}",
+                    description=f"**Тип:** {'🌊 Ocean/Academy' if self.contract_type == 'general' else '📝 Контракты'}\n**Участников:** 0/{self.required_count.value}",
+                    color=COLORS["INFO"]
+                )
+                launch_embed.set_footer(text=f"ID: {contract_id}")
+                
+                await launch_channel.send(embed=launch_embed, view=view)
                 
                 # Тегаем соответствующие роли
                 if self.contract_type == "general":
@@ -100,9 +115,11 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
                 else:
                     role_mentions = f"<@&{ROLES['CONTRACTS']}>"
                 
-                announcement = await channel.send(
+                announcement = await launch_channel.send(
                     f"{role_mentions} 🚀 **Новый контракт создан!** {interaction.user.mention} запустил контракт \"{self.title_input.value}\""
                 )
+                
+                print(f"✅ Кнопка контракта отправлена в канал запуска")
                 
                 # Планируем уведомление об окончании
                 async def finish_contract():
@@ -132,8 +149,8 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
                             color=COLORS["SUCCESS"]
                         )
                         
-                        if channel:
-                            await channel.send(
+                        if contracts_channel:
+                            await contracts_channel.send(
                                 f"{participant_mentions}",
                                 embed=completed_embed
                             )
@@ -145,7 +162,9 @@ class ContractCreationModal(ui.Modal, title='📋 Создание контра�
                 asyncio.create_task(finish_contract())
             
             await interaction.response.send_message(
-                f"✅ Контракт \"{self.title_input.value}\" успешно создан!",
+                f"✅ Контракт \"{self.title_input.value}\" успешно создан!\n\n"
+                f"• 📋 **Информация:** <#{CHANNELS['CONTRACTS']}>\n"
+                f"• 🚀 **Записаться:** <#{CHANNELS['CONTRACTS_LAUNCH']}>",
                 ephemeral=True
             )
             
@@ -193,27 +212,27 @@ class ContractManagementView(ui.View):
             if contracts_cog and participants:
                 await contracts_cog.send_contract_notification(contract, participants, "start")
             
-            # Пытаемся обновить embed контракта (с обработкой ошибки)
-            try:
-                if interaction.message:
-                    embed = interaction.message.embeds[0]
-                    
-                    # Обновляем статус
-                    for i, field in enumerate(embed.fields):
-                        if "статус" in field.name.lower():
-                            embed.set_field_at(
-                                i,
-                                name=field.name,
-                                value="🟡 В процессе",
-                                inline=field.inline
-                            )
-                            break
-                    
-                    await interaction.message.edit(embed=embed, view=self.parent_view)
-            except discord.NotFound:
-                print(f"⚠️ Сообщение контракта #{self.contract_id} не найдено, пропускаем обновление")
-            except Exception as e:
-                print(f"⚠️ Ошибка обновления сообщения контракта: {e}")
+            # Обновляем информацию в канале контрактов
+            contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
+            if contracts_channel:
+                # Находим сообщение с контрактом по ID
+                async for message in contracts_channel.history(limit=100):
+                    if message.embeds and f"ID контракта: {self.contract_id}" in message.embeds[0].footer.text:
+                        embed = message.embeds[0]
+                        
+                        # Обновляем статус
+                        for i, field in enumerate(embed.fields):
+                            if "статус" in field.name.lower():
+                                embed.set_field_at(
+                                    i,
+                                    name=field.name,
+                                    value="🟡 В процессе",
+                                    inline=field.inline
+                                )
+                                break
+                        
+                        await message.edit(embed=embed)
+                        break
             
             participant_count = len(participants) if participants else 0
             await interaction.response.send_message(
@@ -244,32 +263,27 @@ class ContractManagementView(ui.View):
                 if contracts_cog:
                     await contracts_cog.send_contract_notification(contract, participants, "complete")
             
-            # Пытаемся обновить embed контракта (с обработкой ошибки)
-            try:
-                if interaction.message:
-                    embed = interaction.message.embeds[0]
-                    
-                    # Обновляем статус
-                    for i, field in enumerate(embed.fields):
-                        if "статус" in field.name.lower():
-                            embed.set_field_at(
-                                i,
-                                name=field.name,
-                                value="✅ Завершен",
-                                inline=field.inline
-                            )
-                            break
-                    
-                    # Делаем кнопки неактивными
-                    for item in self.parent_view.children:
-                        if hasattr(item, 'disabled'):
-                            item.disabled = True
-                    
-                    await interaction.message.edit(embed=embed, view=self.parent_view)
-            except discord.NotFound:
-                print(f"⚠️ Сообщение контракта #{self.contract_id} не найдено, пропускаем обновление")
-            except Exception as e:
-                print(f"⚠️ Ошибка обновления сообщения контракта: {e}")
+            # Обновляем информацию в канале контрактов
+            contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
+            if contracts_channel:
+                # Находим сообщение с контрактом по ID
+                async for message in contracts_channel.history(limit=100):
+                    if message.embeds and f"ID контракта: {self.contract_id}" in message.embeds[0].footer.text:
+                        embed = message.embeds[0]
+                        
+                        # Обновляем статус
+                        for i, field in enumerate(embed.fields):
+                            if "статус" in field.name.lower():
+                                embed.set_field_at(
+                                    i,
+                                    name=field.name,
+                                    value="✅ Завершен",
+                                    inline=field.inline
+                                )
+                                break
+                        
+                        await message.edit(embed=embed)
+                        break
             
             participant_count = len(participants) if participants else 0
             await interaction.response.send_message(
@@ -339,8 +353,8 @@ class ContractView(ui.View):
             success = await db.add_contract_participant(self.contract_id, interaction.user.id, str(interaction.user))
             
             if success:
-                # Обновляем embed
-                await self.update_contract_embed(interaction)
+                # Обновляем информацию в обоих каналах
+                await self.update_contract_channels(interaction)
                 await interaction.response.send_message("✅ Вы успешно записались на контракт!", ephemeral=True)
             else:
                 await interaction.response.send_message("❌ Ошибка при записи на контракт!", ephemeral=True)
@@ -366,8 +380,8 @@ class ContractView(ui.View):
             success = await db.remove_contract_participant(self.contract_id, interaction.user.id)
             
             if success:
-                # Обновляем embed
-                await self.update_contract_embed(interaction)
+                # Обновляем информацию в обоих каналах
+                await self.update_contract_channels(interaction)
                 await interaction.response.send_message("✅ Вы выписались из контракта!", ephemeral=True)
             else:
                 await interaction.response.send_message("❌ Ошибка при выходе из контракта!", ephemeral=True)
@@ -379,7 +393,7 @@ class ContractView(ui.View):
     @ui.button(label='⚙️ Управление', style=discord.ButtonStyle.primary, custom_id='contract_manage')
     async def manage_contract(self, interaction: discord.Interaction, button: ui.Button):
         try:
-            # ИСПРАВЛЕННАЯ ПРОВЕРКА ПРАВ - используем ID ролей из конфига
+            # Проверяем права
             required_role_ids = [ROLES["ORG"], ROLES["OWNER"]]
             user_role_ids = [role.id for role in interaction.user.roles]
             
@@ -401,43 +415,56 @@ class ContractView(ui.View):
             print(f"❌ Ошибка в manage_contract: {e}")
             await interaction.response.send_message("❌ Ошибка взаимодействия", ephemeral=True)
 
-    async def update_contract_embed(self, interaction: discord.Interaction):
-        """Обновляет embed контракта с текущими участниками"""
+    async def update_contract_channels(self, interaction: discord.Interaction):
+        """Обновляет информацию о контракте в обоих каналах"""
         try:
             participants = await db.get_contract_participants(self.contract_id)
-            
-            # Получаем информацию о контракте
             contract = await db.get_contract_by_id(self.contract_id)
             
-            if contract and interaction.message:
-                contract_id, title, description, duration, expires_at, required_count, created_by, created_at, status, contract_type = contract
+            if not contract:
+                return
                 
-                embed = interaction.message.embeds[0]
-                
-                # Обновляем список участников
-                participants_text = "\n".join([f"👤 {p[2]}" for p in participants]) if participants else "❌ Пока нет участников"
-                
-                # Обновляем количество записанных
-                current_count = len(participants)
-                required_count = int(required_count)
-                
-                # Находим и обновляем поле участников
-                for i, field in enumerate(embed.fields):
-                    if "участники" in field.name.lower():
-                        embed.set_field_at(
-                            i,
-                            name=f"**Участники:** ({current_count}/{required_count})",
-                            value=participants_text,
-                            inline=field.inline
-                        )
+            contract_id, title, description, duration, expires_at, required_count, created_by, created_at, status, contract_type = contract
+            
+            current_count = len(participants)
+            participants_text = "\n".join([f"👤 {p[2]}" for p in participants]) if participants else "❌ Пока нет участников"
+            
+            # Обновляем канал контрактов (полная информация)
+            contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
+            if contracts_channel:
+                async for message in contracts_channel.history(limit=100):
+                    if message.embeds and f"ID контракта: {self.contract_id}" in message.embeds[0].footer.text:
+                        embed = message.embeds[0]
+                        
+                        # Обновляем поле участников
+                        for i, field in enumerate(embed.fields):
+                            if "участники" in field.name.lower():
+                                embed.set_field_at(
+                                    i,
+                                    name=f"**Участники:** ({current_count}/{required_count})",
+                                    value=participants_text,
+                                    inline=field.inline
+                                )
+                                break
+                        
+                        await message.edit(embed=embed)
                         break
-                
-                await interaction.message.edit(embed=embed)
-                
-        except discord.NotFound:
-            print(f"⚠️ Сообщение контракта #{self.contract_id} не найдено, пропускаем обновление")
+            
+            # Обновляем канал запуска (минималистичная информация)
+            launch_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS_LAUNCH"])
+            if launch_channel:
+                async for message in launch_channel.history(limit=100):
+                    if message.embeds and f"ID: {self.contract_id}" in message.embeds[0].footer.text:
+                        embed = message.embeds[0]
+                        
+                        # Обновляем количество участников
+                        embed.description = f"**Тип:** {'🌊 Ocean/Academy' if contract_type == 'general' else '📝 Контракты'}\n**Участников:** {current_count}/{required_count}"
+                        
+                        await message.edit(embed=embed)
+                        break
+                        
         except Exception as e:
-            print(f"❌ Ошибка обновления embed контракта: {e}")
+            print(f"❌ Ошибка обновления каналов контракта: {e}")
 
 class Contracts(commands.Cog):
     def __init__(self, bot):
@@ -546,7 +573,6 @@ class Contracts(commands.Cog):
             print(f"❌ Ошибка регистрации view контрактов: {e}")
 
     @commands.hybrid_command(name="create_contract", description="Создать новый контракт")
-    # ИСПРАВЛЕННАЯ ПРОВЕРКА ПРАВ - используем ID ролей
     @commands.has_any_role(ROLES["ORG"], ROLES["OWNER"])
     async def create_contract(self, ctx):
         """Создание нового контракта"""
