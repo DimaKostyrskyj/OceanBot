@@ -22,7 +22,7 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
     
     role_to_mention = ui.TextInput(
         label='Кого тегать',
-        placeholder='Напишите: Academy или Контракт',
+        placeholder='Напишите: Ocean или Контракт',
         max_length=10,
         required=True
     )
@@ -45,11 +45,11 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
         try:
             # Валидация выбора роли
             role_choice = self.role_to_mention.value.strip()
-            valid_roles = ['Academy', 'Контракт']
+            valid_roles = ['Ocean', 'Контракт']
             
             if role_choice not in valid_roles:
                 await interaction.response.send_message(
-                    "❌ Неверный выбор роли! Используйте: Academy или Контракт",
+                    "❌ Неверный выбор роли! Используйте: Ocean или Контракт",
                     ephemeral=True
                 )
                 return
@@ -60,7 +60,7 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             # Создаем контракт в базе данных
             contract_id = await db.create_contract(
                 self.title_input.value,
-                f"@Academy или Контракт\nСрок действия контракта: {self.contract_duration.value}\n{'-'*50}\nКонтракт длится: {self.execution_time.value}",
+                f"@Ocean или Контракт\nСрок действия контракта: {self.contract_duration.value}\n{'-'*50}\nКонтракт длится: {self.execution_time.value}",
                 self.execution_time.value,
                 "Не указано",
                 registration_ends.isoformat(),
@@ -77,17 +77,17 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             role_mention = ""
             role_name = ""
             
-            if role_choice == "Academy":
-                role_id = ROLES.get("ACADEMY")
+            if role_choice == "Ocean":
+                role_id = ROLES.get("ACADEMY,OCEAN")
                 if role_id:
                     role = interaction.guild.get_role(role_id)
                     if role:
                         role_mention = role.mention
                         role_name = role.name
                     else:
-                        print(f"❌ Роль Academy с ID {role_id} не найдена на сервере")
+                        print(f"❌ Роль Ocean с ID {role_id} не найдена на сервере")
                 else:
-                    print("❌ ID роли Academy не найден в конфиге")
+                    print("❌ ID роли Ocean не найден в конфиге")
             elif role_choice == "Контракт":
                 role_id = ROLES.get("CONTRACT")
                 if role_id:
@@ -466,7 +466,7 @@ class Contracts(commands.Cog):
             embed.add_field(
                 name="🎯 Выбор тега:",
                 value=(
-                    "**Academy** - тегнуть роль Ocean Academy\n"
+                    "**Ocean** - тегнуть роль Ocean Academy и Ocean\n"
                     "**Контракт** - тегнуть роль Контракт"
                 ),
                 inline=False
