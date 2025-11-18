@@ -76,16 +76,34 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             # Получаем информацию о тегируемой роли
             role_mention = ""
             role_name = ""
-            
+
             if role_choice == "Ocean":
-                role_id = ROLES.get("ACADEMY,OCEAN")
-                if role_id:
-                    role = interaction.guild.get_role(role_id)
-                    if role:
-                        role_mention = role.mention
-                        role_name = role.name
+                # Получаем ID обеих ролей
+                academy_role_id = ROLES.get("ACADEMY")
+                ocean_role_id = ROLES.get("OCEAN")  # Добавляем вторую роль
+                
+                role_mentions = []
+                role_names = []
+                
+                # Проверяем и добавляем роль Ocean Academy
+                if academy_role_id:
+                    academy_role = interaction.guild.get_role(academy_role_id)
+                    if academy_role:
+                        role_mentions.append(academy_role.mention)
+                        role_names.append(academy_role.name)
                     else:
-                        print(f"❌ Роль Ocean с ID {role_id} не найдена на сервере")
+                        print(f"❌ Роль Ocean Academy с ID {academy_role_id} не найдена на сервере")
+                else:
+                    print("❌ ID роли Ocean Academy не найден в конфиге")
+                
+                # Проверяем и добавляем роль Ocean
+                if ocean_role_id:
+                    ocean_role = interaction.guild.get_role(ocean_role_id)
+                    if ocean_role:
+                        role_mentions.append(ocean_role.mention)
+                        role_names.append(ocean_role.name)
+                    else:
+                        print(f"❌ Роль Ocean с ID {ocean_role_id} не найдена на сервере")
                 else:
                     print("❌ ID роли Ocean не найден в конфиге")
             elif role_choice == "Контракт":
