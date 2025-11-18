@@ -91,6 +91,7 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
                     if academy_role:
                         role_mentions.append(academy_role.mention)
                         role_names.append(academy_role.name)
+                        print(f"✅ Роль Ocean Academy найдена: {academy_role.name} (ID: {academy_role_id})")
                     else:
                         print(f"❌ Роль Ocean Academy с ID {academy_role_id} не найдена на сервере")
                 else:
@@ -102,25 +103,32 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
                     if ocean_role:
                         role_mentions.append(ocean_role.mention)
                         role_names.append(ocean_role.name)
+                        print(f"✅ Роль Ocean найдена: {ocean_role.name} (ID: {ocean_role_id})")
                     else:
                         print(f"❌ Роль Ocean с ID {ocean_role_id} не найдена на сервере")
                 else:
                     print("❌ ID роли Ocean не найден в конфиге")
+                
+                # Объединяем упоминания и названия
+                role_mention = " ".join(role_mentions)
+                role_name = " и ".join(role_names)
+                
             elif role_choice == "Контракт":
-                role_id = ROLES.get("CONTRACT")
-                if role_id:
-                    role = interaction.guild.get_role(role_id)
+                contract_role_id = ROLES.get("CONTRACT")
+                if contract_role_id:
+                    role = interaction.guild.get_role(contract_role_id)
                     if role:
                         role_mention = role.mention
                         role_name = role.name
+                        print(f"✅ Роль Контракт найдена: {role.name} (ID: {contract_role_id})")
                     else:
-                        print(f"❌ Роль Контракт с ID {role_id} не найдена на сервере")
+                        print(f"❌ Роль Контракт с ID {contract_role_id} не найдена на сервере")
                 else:
                     print("❌ ID роли Контракт не найден в конфиге")
-            
+
             print(f"🔍 Выбранная роль: {role_choice}")
-            print(f"🔍 ID роли: {role_id}")
-            print(f"🔍 Упоминание роли: {role_mention}")
+            print(f"🔍 Упоминания ролей: {role_mention}")
+            print(f"🔍 Названия ролей: {role_name}")
             
             # Создаем embed контракта
             embed = discord.Embed(
