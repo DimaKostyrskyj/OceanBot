@@ -41,6 +41,13 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
         required=True
     )
 
+    execution_time = ui.TextInput(
+        label='Выполнить за:',
+        placeholder='Например: 10 часов',
+        max_length=50,
+        required=True
+    )
+
     async def on_submit(self, interaction: discord.Interaction):
         try:
             # Валидация выбора роли
@@ -123,6 +130,12 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
                 value=self.contract_duration.value,
                 inline=False
             )
+
+            embed.add_field(
+                name="**⏳ Выполнить за:**",
+                value=self.contract_duration.value,
+                inline=False
+            )
             
             embed.add_field(
                 name="**🕒 Контракт длится:**",
@@ -148,7 +161,7 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             view = ContractView(contract_id)
             
             # ОТПРАВЛЯЕМ КОНТРАКТ В КАНАЛ КОНТРАКТОВ С ТЕГОМ ПЕРЕД СООБЩЕНИЕМ
-            contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
+            contracts_channel = interaction.guild.get_channel(CHANNELS["Контракт"])
             if contracts_channel:
                 # Тег теперь в content, а не в embed
                 content = f"{role_mention}\n\n" if role_mention else "❌ Роль для тега не найдена\n\n"
@@ -310,7 +323,7 @@ class ContractView(ui.View):
                 return
             
             # Обновляем статус в сообщении
-            await self.update_contract_status(interaction, "🟡 В процессе")
+            await self.update_contract_status(interaction, "🟢 Запущен")
             
             participant_count = len(participants) if participants else 0
             
