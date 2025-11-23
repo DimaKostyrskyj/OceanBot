@@ -1,4 +1,4 @@
-# database.py - ОБНОВЛЕННЫЙ ФАЙЛ
+# database.py - ПОЛНЫЙ КОД С ТАБЛИЦЕЙ MEMBER_LOGS
 import aiosqlite
 import datetime
 from typing import List, Dict, Optional, Tuple, Any
@@ -88,6 +88,21 @@ class Database:
                         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (contract_id, user_id),
                         FOREIGN KEY (contract_id) REFERENCES contracts (id) ON DELETE CASCADE
+                    )
+                ''')
+
+                # Таблица логов участников
+                await db.execute('''
+                    CREATE TABLE IF NOT EXISTS member_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        nickname TEXT NOT NULL,
+                        passport TEXT,
+                        phone TEXT,
+                        additional_info TEXT,
+                        notes TEXT,
+                        added_by TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
 
@@ -394,6 +409,9 @@ class Database:
                 cursor = await db.execute('SELECT COUNT(*) FROM contract_participants')
                 stats['contract_participants'] = (await cursor.fetchone())[0]
                 
+                cursor = await db.execute('SELECT COUNT(*) FROM member_logs')
+                stats['member_logs'] = (await cursor.fetchone())[0]
+                
                 return stats
         except Exception as e:
             print(f"❌ Ошибка получения статистики: {e}")
@@ -450,6 +468,7 @@ class Database:
                 await db.execute('DROP TABLE IF EXISTS birthdays')
                 await db.execute('DROP TABLE IF EXISTS contracts')
                 await db.execute('DROP TABLE IF EXISTS contract_participants')
+                await db.execute('DROP TABLE IF EXISTS member_logs')
                 await db.commit()
                 
                 await self.init_db()
