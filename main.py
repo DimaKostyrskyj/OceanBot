@@ -1,10 +1,11 @@
 # main.py - ИСПРАВЛЕННЫЙ
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 import asyncio
 from dotenv import load_dotenv
 from utils.database import Database
+import random
 
 # Загружаем переменные из .env файла
 load_dotenv()
@@ -13,6 +14,10 @@ load_dotenv()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 db = Database()
+
+# Информация о создателе
+BOT_CREATOR = "Ocean Family"
+BOT_VERSION = "4.0"
 
 @bot.event
 async def on_ready():
@@ -62,18 +67,35 @@ async def on_ready():
     await asyncio.sleep(1)
     print("✅ Все view зарегистрированы")
     
-    # Устанавливаем статус бота
-    await bot.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.watching,
-            name="Ocean Family 🌊"
-        ),
-        status=discord.Status.online
-    )
+    # Запускаем динамический статус
+    if not change_status.is_running():
+        change_status.start()
+        print("🎮 Динамический статус запущен")
     
     print("🎉 Бот полностью готов к работе!")
     print("💡 Используйте префикс ! для обычных команд (например: !add_log)")
     print("💡 Используйте / для slash команд (например: /ping)")
+
+@tasks.loop(seconds=15)  # Меняется каждые 15 секунд
+async def change_status():
+    """Динамическая смена статуса бота"""
+    try:
+        statuses = [
+            discord.Activity(type=discord.ActivityType.playing, name="Ocean Family 🌊"),
+            discord.Activity(type=discord.ActivityType.watching, name="за участниками"),
+            discord.Activity(type=discord.ActivityType.listening, name="команды"),
+            discord.Activity(type=discord.ActivityType.playing, name="с контрактами"),
+            discord.Activity(type=discord.ActivityType.watching, name="дни рождения"),
+        ]
+        activity = random.choice(statuses)
+        await bot.change_presence(activity=activity, status=discord.Status.online)
+    except Exception as e:
+        print(f"❌ Ошибка при смене статуса: {e}")
+
+@change_status.before_loop
+async def before_change_status():
+    """Ждем, пока бот будет готов, перед запуском смены статуса"""
+    await bot.wait_until_ready()
 
 @bot.event
 async def on_guild_join(guild):
@@ -141,8 +163,8 @@ async def bot_info(ctx):
         color=0x00ffff
     )
     
-    embed.add_field(name="👑 Владелец", value="Ocean Family", inline=True)
-    embed.add_field(name="📚 Версия", value="1.0.0", inline=True)
+    embed.add_field(name="👑 Создатель", value=BOT_CREATOR, inline=True)
+    embed.add_field(name="📚 Версия", value=BOT_VERSION, inline=True)
     embed.add_field(name="🏓 Задержка", value=f"{round(bot.latency * 1000)}мс", inline=True)
     
     embed.add_field(
@@ -157,7 +179,13 @@ async def bot_info(ctx):
         inline=False
     )
     
-    embed.set_footer(text="Ocean Family Bot")
+    embed.add_field(
+        name="🎮 Статус",
+        value="Динамический статус включен ✅",
+        inline=False
+    )
+    
+    embed.set_footer(text=f"Ocean Family Bot | Created by {BOT_CREATOR}")
     
     await ctx.send(embed=embed)
 
@@ -204,6 +232,27 @@ async def clear_data(ctx):
             color=0xff0000
         )
         await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="status_toggle", description="Включить/выключить динамический статус")
+@commands.is_owner()
+async def status_toggle(ctx):
+    """Управление динамическим статусом"""
+    if change_status.is_running():
+        change_status.stop()
+        embed = discord.Embed(
+            title="⏸️ Статус отключен",
+            description="Динамический статус выключен",
+            color=0xffff00
+        )
+    else:
+        change_status.start()
+        embed = discord.Embed(
+            title="▶️ Статус включен",
+            description="Динамический статус включен",
+            color=0x00ff00
+        )
+    
+    await ctx.send(embed=embed)
 
 async def main():
     """Основная функция запуска бота"""
