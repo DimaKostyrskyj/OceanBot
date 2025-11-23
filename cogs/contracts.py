@@ -1,4 +1,4 @@
-# contracts.py - ИСПРАВЛЕННЫЙ КОД С ТЕГОМ
+# contracts.py - УЛУЧШЕННЫЙ ДИЗАЙН КОНТРАКТОВ
 import discord
 from discord.ext import commands
 from discord import ui
@@ -27,17 +27,17 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
         required=True
     )
     
-    contract_duration = ui.TextInput(
-        label='Срок действия контракта',
-        placeholder='Например: 47 часов',
-        max_length=50,
+    duration_and_execution = ui.TextInput(
+        label='Срок действия / Длится',
+        placeholder='Например: 47 часов / 2ч 30м',
+        max_length=100,
         required=True
     )
     
-    execution_time = ui.TextInput(
-        label='Контракт длится',
-        placeholder='Например: 2 часа 30 минут',
-        max_length=50,
+    complete_and_chance = ui.TextInput(
+        label='Выполнить за / Шанс',
+        placeholder='Например: 1ч 30м / 85%',
+        max_length=100,
         required=True
     )
 
@@ -54,15 +54,43 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
                 )
                 return
             
+            # Парсим первое объединенное поле (Срок / Длится)
+            duration_input = self.duration_and_execution.value
+            duration_parts = [part.strip() for part in duration_input.split('/')]
+            
+            if len(duration_parts) != 2:
+                await interaction.response.send_message(
+                    "❌ Неверный формат! Используйте: Срок действия / Длится\nНапример: 47 часов / 2ч 30м",
+                    ephemeral=True
+                )
+                return
+            
+            contract_duration = duration_parts[0]
+            execution_time = duration_parts[1]
+            
+            # Парсим второе объединенное поле (Выполнить / Шанс)
+            complete_input = self.complete_and_chance.value
+            complete_parts = [part.strip() for part in complete_input.split('/')]
+            
+            if len(complete_parts) != 2:
+                await interaction.response.send_message(
+                    "❌ Неверный формат! Используйте: Выполнить за / Шанс\nНапример: 1ч 30м / 85%",
+                    ephemeral=True
+                )
+                return
+            
+            complete_for = complete_parts[0]
+            chance = complete_parts[1]
+            
             # Рассчитываем время окончания (48 часов для регистрации)
             registration_ends = datetime.datetime.now() + datetime.timedelta(hours=48)
             
             # Создаем контракт в базе данных
             contract_id = await db.create_contract(
                 self.title_input.value,
-                f"@Ocean или Контракт\nСрок действия контракта: {self.contract_duration.value}\n{'-'*50}\nКонтракт длится: {self.execution_time.value}",
-                self.execution_time.value,
-                "Не указано",
+                f"@Ocean или Контракт\nСрок действия контракта: {contract_duration}",
+                execution_time,
+                complete_for,
                 registration_ends.isoformat(),
                 0,
                 interaction.user.id,
@@ -80,7 +108,7 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             if role_choice == "Ocean":
                 # Получаем ID обеих ролей
                 academy_role_id = ROLES.get("ACADEMY")
-                ocean_role_id = ROLES.get("OCEAN")  # Добавляем вторую роль
+                ocean_role_id = ROLES.get("ORG")
                 
                 role_mentions = []
                 role_names = []
@@ -130,53 +158,71 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
             print(f"🔍 Упоминания ролей: {role_mention}")
             print(f"🔍 Названия ролей: {role_name}")
             
-            # Создаем embed контракта
+            # Создаем красивый embed контракта
             embed = discord.Embed(
-                title=f"📋 {self.title_input.value}",
-                color=COLORS["INFO"],
+                color=0x2b2d31,
                 timestamp=datetime.datetime.now()
             )
             
-            # Добавляем основную информацию
+            embed.title = f"📋 {self.title_input.value}"
+            
+            # Основная информация
+            embed.description = (
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"**👤 Создал:** {interaction.user.mention}\n"
+                f"━━━━━━━━━━━━━━━━━━━━"
+            )
+            
+            # Информация о контракте
             embed.add_field(
-                name="**👤 Создал:**",
-                value=interaction.user.mention,
+                name="⏰ Срок действия контракта:",
+                value=f"{contract_duration}",
                 inline=False
             )
             
             embed.add_field(
-                name="**⏰ Срок действия контракта:**",
-                value=self.contract_duration.value,
+                name="🕒 Контракт длится:",
+                value=f"{execution_time}",
                 inline=False
             )
             
             embed.add_field(
-                name="**🕒 Контракт длится:**",
-                value=self.execution_time.value,
+                name="⚡ Выполнить за:",
+                value=f"{complete_for}",
                 inline=False
             )
             
             embed.add_field(
-                name="**📊 Участники:**",
+                name="🎲 Шанс:",
+                value=f"{chance}",
+                inline=False
+            )
+            
+            # Участники
+            embed.add_field(
+                name="📊 Участники:",
                 value="❌ Пока нет участников",
                 inline=False
             )
             
+            # Статус
             embed.add_field(
-                name="**🟢 Статус:**",
-                value="Открыта регистрация",
-                inline=True
+                name="🟢 Статус:",
+                value="✅ Открыта регистрация",
+                inline=False
             )
             
-            embed.set_footer(text=f"ID контракта: {contract_id}")
+            embed.set_footer(
+                text=f"ID контракта: {contract_id} • Ocean Family",
+                icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+            )
             
-            # Создаем view для контракта с кнопкой "Начать"
+            # Создаем view для контракта
             view = ContractView(contract_id)
             
-            # ОТПРАВЛЯЕМ КОНТРАКТ В КАНАЛ КОНТРАКТОВ С ТЕГОМ ПЕРЕД СООБЩЕНИЕМ
+            # Отправляем контракт в канал
             contracts_channel = interaction.guild.get_channel(CHANNELS["CONTRACTS"])
             if contracts_channel:
-                # Тег теперь в content, а не в embed
                 content = f"{role_mention}\n\n" if role_mention else "❌ Роль для тега не найдена\n\n"
                 message = await contracts_channel.send(
                     content=content,
@@ -187,17 +233,13 @@ class ContractLaunchModal(ui.Modal, title='🚀 Запуск контракта'
                 print(f"✅ Контракт создан в канале контрактов")
                 print(f"✅ Content сообщения: {content}")
                 
-                # Сразу создаем ветку для контракта
+                # Создаем ветку для контракта
                 try:
                     thread = await message.create_thread(
                         name=f"🚀 {self.title_input.value}",
-                        auto_archive_duration=1440  # 24 часа
+                        auto_archive_duration=1440
                     )
-                
-                    
-                    await thread.send
                     print(f"✅ Ветка создана для контракта {self.title_input.value}")
-                    
                 except Exception as e:
                     print(f"❌ Ошибка создания ветки: {e}")
                 
@@ -227,7 +269,6 @@ class LaunchContractView(ui.View):
     @ui.button(label='🚀 Запустить контракт', style=discord.ButtonStyle.primary, custom_id='launch_contract_button')
     async def launch_contract(self, interaction: discord.Interaction, button: ui.Button):
         try:
-            # Проверяем права
             required_role_ids = [ROLES["ORG"], ROLES["OWNER"]]
             user_role_ids = [role.id for role in interaction.user.roles]
             
@@ -260,17 +301,14 @@ class ContractView(ui.View):
                 await interaction.response.send_message("❌ Регистрация на этот контракт закрыта!", ephemeral=True)
                 return
             
-            # Проверяем, не записан ли уже пользователь
             participants = await db.get_contract_participants(self.contract_id)
             if any(p[1] == interaction.user.id for p in participants):
                 await interaction.response.send_message("❌ Вы уже записаны на этот контракт!", ephemeral=True)
                 return
             
-            # Записываем пользователя
             success = await db.add_contract_participant(self.contract_id, interaction.user.id, str(interaction.user))
             
             if success:
-                # Обновляем список участников
                 await self.update_participants_list(interaction)
                 await interaction.response.send_message("✅ Вы успешно записались на контракт!", ephemeral=True)
             else:
@@ -290,17 +328,14 @@ class ContractView(ui.View):
                 await interaction.response.send_message("❌ Регистрация на этот контракт закрыта!", ephemeral=True)
                 return
             
-            # Проверяем, записан ли пользователь
             participants = await db.get_contract_participants(self.contract_id)
             if not any(p[1] == interaction.user.id for p in participants):
                 await interaction.response.send_message("❌ Вы не записаны на этот контракт!", ephemeral=True)
                 return
             
-            # Удаляем пользователя
             success = await db.remove_contract_participant(self.contract_id, interaction.user.id)
             
             if success:
-                # Обновляем список участников
                 await self.update_participants_list(interaction)
                 await interaction.response.send_message("✅ Вы выписались из контракта!", ephemeral=True)
             else:
@@ -316,7 +351,6 @@ class ContractView(ui.View):
     @ui.button(label='▶️ Начать контракт', style=discord.ButtonStyle.primary, custom_id='contract_start')
     async def start_contract(self, interaction: discord.Interaction, button: ui.Button):
         try:
-            # Проверяем права
             required_role_ids = [ROLES["ORG"], ROLES["OWNER"]]
             user_role_ids = [role.id for role in interaction.user.roles]
             
@@ -324,10 +358,8 @@ class ContractView(ui.View):
                 await interaction.response.send_message("❌ У вас нет прав для начала контракта!", ephemeral=True)
                 return
             
-            # Закрываем регистрацию
             self.registration_open = False
             
-            # Получаем данные контракта
             contract = await db.get_contract_by_id(self.contract_id)
             participants = await db.get_contract_participants(self.contract_id)
             
@@ -335,8 +367,15 @@ class ContractView(ui.View):
                 await interaction.response.send_message("❌ Контракт не найден!", ephemeral=True)
                 return
             
-            # Обновляем статус в сообщении
+            # Обновляем статус
             await self.update_contract_status(interaction, "🟡 В процессе")
+            
+            # Создаем новый view только с кнопкой "Закончить"
+            new_view = ContractFinishView(self.contract_id)
+            
+            # Обновляем сообщение с новым view
+            if interaction.message:
+                await interaction.message.edit(view=new_view)
             
             participant_count = len(participants) if participants else 0
             
@@ -357,7 +396,6 @@ class ContractView(ui.View):
         try:
             participants = await db.get_contract_participants(self.contract_id)
             
-            # Формируем список участников с ТЕГАМИ (упоминаниями)
             participant_mentions = []
             for participant in participants:
                 user_id = participant[1]
@@ -368,22 +406,20 @@ class ContractView(ui.View):
                 except:
                     participant_mentions.append(f"<@{user_id}>")
             
-            # Форматируем участников с упоминаниями
+            # Форматируем участников БЕЗ code blocks
             if participant_mentions:
-                participants_text = "\n".join([f"• {mention}" for mention in participant_mentions])
+                participants_text = " ".join(participant_mentions)
             else:
                 participants_text = "❌ Пока нет участников"
             
-            # Обновляем сообщение
             if interaction.message:
                 embed = interaction.message.embeds[0]
                 
-                # Обновляем поле участников
                 for i, field in enumerate(embed.fields):
                     if "участники" in field.name.lower():
                         embed.set_field_at(
                             i,
-                            name="**📊 Участники:**",
+                            name="📊 Участники:",
                             value=participants_text,
                             inline=field.inline
                         )
@@ -400,7 +436,6 @@ class ContractView(ui.View):
             if interaction.message:
                 embed = interaction.message.embeds[0]
                 
-                # Обновляем статус
                 for i, field in enumerate(embed.fields):
                     if "статус" in field.name.lower():
                         embed.set_field_at(
@@ -416,30 +451,87 @@ class ContractView(ui.View):
         except Exception as e:
             print(f"❌ Ошибка обновления статуса: {e}")
 
+class ContractFinishView(ui.View):
+    """View только с кнопкой 'Закончить контракт'"""
+    def __init__(self, contract_id: int):
+        super().__init__(timeout=None)
+        self.contract_id = contract_id
+
+    @ui.button(label='✅ Закончить контракт', style=discord.ButtonStyle.success, custom_id='contract_finish')
+    async def finish_contract(self, interaction: discord.Interaction, button: ui.Button):
+        try:
+            required_role_ids = [ROLES["ORG"], ROLES["OWNER"]]
+            user_role_ids = [role.id for role in interaction.user.roles]
+            
+            if not any(role_id in user_role_ids for role_id in required_role_ids):
+                await interaction.response.send_message("❌ У вас нет прав для завершения контракта!", ephemeral=True)
+                return
+            
+            contract = await db.get_contract_by_id(self.contract_id)
+            participants = await db.get_contract_participants(self.contract_id)
+            
+            if not contract:
+                await interaction.response.send_message("❌ Контракт не найден!", ephemeral=True)
+                return
+            
+            # Обновляем статус контракта на "Завершен"
+            await db.update_contract_status(self.contract_id, "completed")
+            
+            # Обновляем embed
+            if interaction.message and interaction.message.embeds:
+                embed = interaction.message.embeds[0]
+                
+                for i, field in enumerate(embed.fields):
+                    if "статус" in field.name.lower():
+                        embed.set_field_at(
+                            i,
+                            name=field.name,
+                            value="✅ Завершен",
+                            inline=field.inline
+                        )
+                        break
+                
+                # Убираем все кнопки
+                await interaction.message.edit(embed=embed, view=None)
+            
+            participant_count = len(participants) if participants else 0
+            
+            await interaction.response.send_message(
+                f"✅ Контракт завершен! Участников: {participant_count}",
+                ephemeral=True
+            )
+            
+        except Exception as e:
+            print(f"❌ Ошибка завершения контракта: {e}")
+            try:
+                await interaction.response.send_message(f"❌ Ошибка при завершении контракта: {str(e)}", ephemeral=True)
+            except:
+                pass
+
 class Contracts(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Инициализация базы данных
         await db.init_db()
         
-        # РЕГИСТРИРУЕМ ФИКСИРОВАННУЮ КНОПКУ ЗАПУСКА КОНТРАКТОВ
         self.bot.add_view(LaunchContractView())
         print("✅ Фиксированная кнопка запуска контрактов зарегистрирована")
         
-        # РЕГИСТРИРУЕМ ФИКСИРОВАННЫЕ КНОПКИ ДЛЯ АКТИВНЫХ КОНТРАКТОВ
         try:
             active_contracts = await db.get_active_contracts()
             print(f"🔍 Найдено {len(active_contracts)} активных контрактов для регистрации")
             
             for contract in active_contracts:
                 contract_id = contract[0]
-                # Регистрируем view для каждого активного контракта
                 view = ContractView(contract_id)
                 self.bot.add_view(view)
                 print(f"✅ Зарегистрированы фиксированные кнопки для контракта #{contract_id}")
+            
+            # Регистрируем view для завершения контрактов
+            self.bot.add_view(ContractFinishView(0))
+            print("✅ Зарегистрирован view для завершения контрактов")
                 
         except Exception as e:
             print(f"❌ Ошибка регистрации view контрактов: {e}")
@@ -451,7 +543,6 @@ class Contracts(commands.Cog):
         try:
             print(f"🔧 Вызвана команда setup_contracts пользователем {ctx.author}")
             
-            # КНОПКА В КАНАЛЕ #запуск-контракта
             launch_channel = ctx.guild.get_channel(CHANNELS["CONTRACTS_START"])
             print(f"🔍 Поиск канала с ID: {CHANNELS['CONTRACTS_START']}")
             
@@ -462,14 +553,12 @@ class Contracts(commands.Cog):
             
             print(f"✅ Канал найден: {launch_channel.name}")
             
-            # Очищаем предыдущие сообщения в канале запуска
             try:
                 deleted = await launch_channel.purge(limit=10)
                 print(f"✅ Очищено {len(deleted)} сообщений в канале запуска контрактов")
             except Exception as e:
                 print(f"⚠️ Не удалось очистить канал запуска: {e}")
             
-            # Создаем embed с инструкцией для канала запуска
             embed = discord.Embed(
                 title="🚀 Запуск контракта",
                 description="Нажмите кнопку ниже чтобы запустить новый контракт",
@@ -498,10 +587,8 @@ class Contracts(commands.Cog):
                 inline=False
             )
             
-            # СОЗДАЕМ ФИКСИРОВАННУЮ КНОПКУ С PERSISTENT VIEW
             view = LaunchContractView()
             
-            # ОТПРАВЛЯЕМ ФИКСИРОВАННУЮ КНОПКУ В КАНАЛ #запуск-контракта
             message = await launch_channel.send(embed=embed, view=view)
             print(f"✅ Фиксированная кнопка отправлена. ID сообщения: {message.id}")
             
